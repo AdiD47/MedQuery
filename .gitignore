@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+.env
+
+# IDE/OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Data & cache
+app/rag/chroma_db/
+reports/
+
+# Streamlit
+.streamlit/

@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint import
+        run: |
+          source .venv/bin/activate
+          python -c "import app.server.main, app.tools.web_search, app.tools.clinicaltrials_client, app.crew; print('Imports OK')"
+
+      - name: Smoke run
+        env:
+          MOCK_SERVER_URL: http://127.0.0.1:8000
+        run: |
+          source .venv/bin/activate
+          uvicorn app.server.main:app --port 8000 &
+          sleep 3
+          python -c "from app.crew import run_query; print(run_query('Which respiratory diseases show low competition but high patient burden in India?')['candidates'])"

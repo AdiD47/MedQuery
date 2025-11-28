@@ -1,0 +1,4 @@
+Company strategy notes (mock):
+- Respiratory portfolio: consider under-served ILD subtypes.
+- COPD is crowded with many trials; asthma moderate.
+- Focus on markets with high burden and low competition.

@@ -1,74 +1,54 @@
-# Techathon - Master Agent Intelligence Platform
+# MedQuery – Multi-Agent Med Intelligence (Hackathon Starter)
 
-A pharmaceutical research orchestration platform powered by AI agents.
+This project demonstrates a Master Agent orchestrating specialist agents to answer complex pharma strategy questions like:
 
-## Quick Start
+“Which respiratory diseases show low competition but high patient burden in India?”
 
-### Backend Setup
-```bash
-cd backend
-python -m venv venv
-# Windows: venv\Scripts\activate
-# macOS/Linux: source venv/bin/activate
+It uses CrewAI for orchestration, a real ClinicalTrials.gov API, a RAG agent over internal docs via ChromaDB, Tavily for live web search, and a FastAPI mock server for proprietary data (IQVIA/EXIM/USPTO).
+
+## Stack
+- CrewAI (agents, tasks, collaboration)
+- LLM: Google Gemini 1.5 Pro via `langchain-google-genai`
+- UI: Streamlit
+- Mock APIs: FastAPI (IQVIA/EXIM/USPTO)
+- Live Search: Tavily API
+- RAG: ChromaDB + Google embeddings
+- Reports: fpdf2
+
+## Setup
+1. Python 3.10+ recommended
+2. Create and activate venv
+```powershell
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+```
+3. Install deps
+```powershell
 pip install -r requirements.txt
-uvicorn server:app --reload --port 8000
+```
+4. Configure env
+- Copy `.env.example` to `.env` and fill `GOOGLE_API_KEY` and (optional) `TAVILY_API_KEY`.
+ - Optional: configure NVIDIA Biomedical AI-Q by setting `NVIDIA_BIOAIQ_URL` and `NVIDIA_BIOAIQ_API_KEY` if your blueprint service is deployed.
+
+## Run the mock server
+```powershell
+uvicorn app.server.main:app --reload --port 8000
 ```
 
-### Frontend Setup
-```bash
-cd frontend
-npm install  # or yarn install
-npm start    # or yarn start
+## Ingest internal knowledge (RAG)
+Put your PDFs or `.txt` files into `data/internal/`. For the demo we include `internal_notes.txt`.
+```powershell
+python app/rag/ingest.py
 ```
 
-### Environment Variables
-
-**Backend** (`backend/.env`):
-```env
-MONGO_URL=mongodb://localhost:27017
-DB_NAME=techathon_db
-CORS_ORIGINS=http://localhost:3000
-GEMINI_API_KEY=your_key_here  # Optional
-TAVILY_API_KEY=your_key_here  # Optional
+## Run the Streamlit UI
+```powershell
+streamlit run app/ui/app.py
 ```
+Open the link shown in terminal. Enter a question (e.g., the respiratory example) and click Run.
 
-**Frontend** (`frontend/.env`):
-```env
-REACT_APP_BACKEND_URL=http://localhost:8000
-```
+## Notes
+- ClinicalTrials.gov API is real and requires no key.
+- Tavily is optional; without a key, the app falls back to a minimal generic search summary.
+- The mock server returns deterministic data.
+ - NVIDIA Biomedical AI-Q integration is optional; if configured, its analysis is prepended to the summary and candidate ordering can be influenced.
 
-## Documentation
-
-- **[SETUP.md](SETUP.md)** - Complete setup instructions and troubleshooting
-- **[PROJECT_FRAMEWORK.md](PROJECT_FRAMEWORK.md)** - Comprehensive project architecture and framework
-- **[TECHNICAL_DIAGRAMS.md](TECHNICAL_DIAGRAMS.md)** - Visual technical diagrams and architecture
-- **[FRAMEWORK_QUICK_REFERENCE.md](FRAMEWORK_QUICK_REFERENCE.md)** - Quick reference guide
-- **[API_KEYS_SETUP.md](API_KEYS_SETUP.md)** - API keys configuration guide
-
-## Features
-
-- 🤖 **Master Agent**: Intelligent orchestration of research tasks
-- ⚡ **7 Worker Agents**: Specialized agents for clinical trials, market data, patents, web search, and more
-- 📄 **PDF Reports**: Automatic generation of professional research reports
-- 🔄 **Real-time Updates**: Live status polling for research progress
-- 🎨 **Modern UI**: Beautiful React interface with Tailwind CSS
-
-## Project Structure
-
-```
-├── backend/          # FastAPI backend with AI agents
-├── frontend/         # React frontend application
-└── SETUP.md         # Detailed setup guide
-```
-
-## Access Points
-
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-
-## Requirements
-
-- Python 3.8+
-- Node.js 16+
-- MongoDB (optional but recommended)
