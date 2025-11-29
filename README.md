@@ -34,16 +34,29 @@ pip install -r requirements.txt
 uvicorn app.server.main:app --reload --port 8000
 ```
 
+Open the HTML frontend at `http://127.0.0.1:8000/`.
+
 ## Ingest internal knowledge (RAG)
 Put your PDFs or `.txt` files into `data/internal/`. For the demo we include `internal_notes.txt`.
 ```powershell
 python app/rag/ingest.py
 ```
 
-## Run the Streamlit UI
+## Run the Streamlit UI (alternative)
 ```powershell
-streamlit run app/ui/app.py
+streamlit run app/ui/ui_app.py
 ```
+
+## Single-command launch
+Alternatively, run everything (mock server + optional ingest + UI) with:
+```powershell
+python scripts/run_medquery.py
+```
+Flags:
+- Skip ingest: `python scripts/run_medquery.py --no-ingest`
+- Custom port: `python scripts/run_medquery.py --port 8100`
+
+The script exits with Ctrl+C.
 Open the link shown in terminal. Enter a question (e.g., the respiratory example) and click Run.
 
 ## Notes

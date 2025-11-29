@@ -1,8 +1,22 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+from pathlib import Path
+
+from app.crew import run_query
 
 app = FastAPI(title="MedQuery Mock Server", version="0.1.0")
+
+# Static assets and reports serving for the HTML frontend
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+_REPORTS_DIR = Path(__file__).resolve().parents[2] / "reports"
+# Ensure directories exist before mounting
+_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+app.mount("/reports", StaticFiles(directory=str(_REPORTS_DIR)), name="reports")
 
 
 class DiseaseRequest(BaseModel):
@@ -15,9 +29,20 @@ class DiseaseListRequest(BaseModel):
     country: Optional[str] = "India"
 
 
+class QueryRequest(BaseModel):
+    question: str
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/")
+def index() -> Any:
+    # Serve the HTML frontend
+    idx = _STATIC_DIR / "index.html"
+    return FileResponse(str(idx))
 
 
 # Deterministic mock data for demo
@@ -104,3 +129,19 @@ def mock_uspto(payload: DiseaseRequest) -> Dict[str, Any]:
         "highlights": ["Limited filings"],
     })
     return {"disease": d, "country": payload.country, **data}
+
+
+@app.post("/api/run_query")
+def api_run_query(payload: QueryRequest) -> Dict[str, Any]:
+    """Run the end-to-end analysis and return JSON result.
+    Also include a public report URL for the generated PDF.
+    """
+    res = run_query(payload.question)
+    pdf_path = res.get("report_pdf")
+    try:
+        if isinstance(pdf_path, str):
+            name = Path(pdf_path).name
+            res["report_url"] = f"/reports/{name}"
+    except Exception:
+        pass
+    return res

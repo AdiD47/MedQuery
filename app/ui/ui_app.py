@@ -5,7 +5,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 # Ensure project root is first on sys.path so that the package
-# `app` (folder) is found before this local `app.py` file.
+# `app` (folder) is found before any sibling `app.py` files.
 _root = Path(__file__).resolve().parents[2]
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
