@@ -96,6 +96,7 @@ def build_crew() -> Crew:
             "2) for each disease, call iqvia, exim, uspto, trials; 3) query rag_query for past research; "
             "4) rank diseases prioritizing low competition (fewer competitors and fewer phase 2/3 trials) and high burden (proxy: market size); "
             "5) write a concise summary; 6) call report to generate a PDF with tables and the summary."
+            "6)You are an expert academic editor for the journal 'Academic Medicine.' Your goal is to write a rigorous Innovation Report based on the provided data. You must use an objective, formal tone and strictly follow the section structure: Problem, Approach, Outcomes, and Next Steps."
         ),
         agent=master,
         expected_output=(
