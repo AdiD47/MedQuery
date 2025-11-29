@@ -26,8 +26,7 @@ def _normalize(values: List[float]) -> List[float]:
 
 def _synthesize_summary(question: str, table: List[Dict[str, Any]]) -> str:
     api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        # Minimal fallback when no LLM configured
+    def _heuristic() -> str:
         lines = [
             "LLM not configured; returning heuristic summary.",
             "Top candidates by low-competition/high-burden heuristic:",
@@ -36,25 +35,34 @@ def _synthesize_summary(question: str, table: List[Dict[str, Any]]) -> str:
             lines.append(f"- {row['disease']}: score={row['score']:.2f}")
         return "\n".join(lines)
 
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest", temperature=0.2)
-    # Keep prompt compact
-    csv_rows = "\n".join(
-        [
-            "disease,score,market_size_usd,competitor_count,phase2_india,phase3_india,patent_filings_last_5y,key_patents_expiring_in_years"
-        ]
-        + [
-            f"{r['disease']},{r['score']:.3f},{r.get('market_size_usd',0)},{r.get('competitor_count',0)},{r.get('phase2_india',0)},{r.get('phase3_india',0)},{r.get('patent_filings_last_5y',0)},{r.get('key_patents_expiring_in_years',0)}"
-            for r in table
-        ]
-    )
-    prompt = (
-        "You are an analyst. Based on the table, write a concise executive summary "
-        "identifying diseases with low competition but high patient burden in India. "
-        "Explain 2-3 reasons for the top 1-2 picks, referencing competition (competitors, trials) "
-        "and timing (patent expiries). Keep under 140 words.\n\n" + csv_rows
-    )
-    resp = llm.invoke(prompt)
-    return getattr(resp, "content", str(resp))
+    if not api_key:
+        return _heuristic()
+
+    # Prefer stable model name; allow override via env
+    model_name = os.getenv("GOOGLE_CHAT_MODEL", "gemini-2.5-pro")
+    try:
+        llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2)
+        # Keep prompt compact
+        csv_rows = "\n".join(
+            [
+                "disease,score,market_size_usd,competitor_count,phase2_india,phase3_india,patent_filings_last_5y,key_patents_expiring_in_years"
+            ]
+            + [
+                f"{r['disease']},{r['score']:.3f},{r.get('market_size_usd',0)},{r.get('competitor_count',0)},{r.get('phase2_india',0)},{r.get('phase3_india',0)},{r.get('patent_filings_last_5y',0)},{r.get('key_patents_expiring_in_years',0)}"
+                for r in table
+            ]
+        )
+        prompt = (
+            "You are an analyst. Based on the table, write a concise executive summary "
+            "identifying diseases with low competition but high patient burden in India. "
+            "Explain 2-3 reasons for the top 1-2 picks, referencing competition (competitors, trials) "
+            "and timing (patent expiries). Keep under 140 words.\n\n" + csv_rows
+        )
+        resp = llm.invoke(prompt)
+        return getattr(resp, "content", str(resp))
+    except Exception:
+        # If model name not available (e.g., -latest not found), fall back
+        return _heuristic()
 
 
 def run_query(question: str) -> Dict[str, Any]:

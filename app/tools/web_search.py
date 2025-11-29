@@ -39,11 +39,11 @@ def tavily_search(query: str, max_results: int = 5) -> Dict[str, Any]:
 
 def extract_candidate_diseases(search_payload: Dict[str, Any]) -> List[str]:
     # Very light heuristic; the Master Agent can refine via LLM
-    text = " ".join([
-        search_payload.get("answer", ""),
-        " ".join([r.get("content", "") for r in search_payload.get("results", [])]),
-        search_payload.get("summary", ""),
-    ])
+    # Coerce potential None values to strings to avoid join() TypeError
+    answer = str(search_payload.get("answer", "") or "")
+    results_text = " ".join([str(r.get("content", "") or "") for r in search_payload.get("results", [])])
+    summary = str(search_payload.get("summary", "") or "")
+    text = " ".join([answer, results_text, summary])
     candidates = []
     for kw in ["COPD", "Asthma", "ILD", "IPF", "Bronchiectasis"]:
         if kw.lower() in text.lower():

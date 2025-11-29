@@ -62,7 +62,7 @@ def _report(json_in: str) -> str:
 
 
 def build_crew() -> Crew:
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest", temperature=0.2)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.2)
 
     tools = [
         Tool(name="web_search", func=_web_search, description="Search the web and extract candidate diseases"),

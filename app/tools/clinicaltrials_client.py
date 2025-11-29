@@ -33,7 +33,11 @@ def trials_stats_for_disease_in_india(disease: str) -> Dict[str, Any]:
                 .get("designModule", {})
                 .get("phases", [])
             )
-            return ",".join(ph)
+            # phases may be None or contain non-strings; normalize safely
+            if not ph or not isinstance(ph, (list, tuple)):
+                return ""
+            safe = [str(x) for x in ph if x is not None]
+            return ",".join(safe)
 
         total = 0
         p2 = 0

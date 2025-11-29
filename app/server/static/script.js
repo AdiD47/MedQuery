@@ -141,6 +141,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return r.json();
         })
         .then(data => {
+            if (data && data.error){
+                if (statusBar){
+                    statusBar.textContent = 'Error: ' + data.error;
+                    statusBar.classList.remove('loading');
+                }
+                return;
+            }
             // Summary
             if (summaryText) { summaryText.textContent = data.summary || '(No summary returned)'; }
             if (summaryWrap) { summaryWrap.hidden = false; }

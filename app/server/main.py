@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from pathlib import Path
+import logging
 
 from app.crew import run_query
 
@@ -132,16 +133,20 @@ def mock_uspto(payload: DiseaseRequest) -> Dict[str, Any]:
 
 
 @app.post("/api/run_query")
-def api_run_query(payload: QueryRequest) -> Dict[str, Any]:
+def api_run_query(payload: QueryRequest) -> Any:
     """Run the end-to-end analysis and return JSON result.
-    Also include a public report URL for the generated PDF.
+    Also include a public report URL for the generated PDF. Returns a JSON error instead of 500 on failure.
     """
-    res = run_query(payload.question)
-    pdf_path = res.get("report_pdf")
     try:
-        if isinstance(pdf_path, str):
-            name = Path(pdf_path).name
-            res["report_url"] = f"/reports/{name}"
-    except Exception:
-        pass
-    return res
+        res = run_query(payload.question)
+        pdf_path = res.get("report_pdf")
+        try:
+            if isinstance(pdf_path, str):
+                name = Path(pdf_path).name
+                res["report_url"] = f"/reports/{name}"
+        except Exception:
+            pass
+        return res
+    except Exception as e:
+        logging.exception("run_query failed")
+        return JSONResponse({"error": str(e)}, status_code=200)
