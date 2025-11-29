@@ -24,44 +24,86 @@ def _normalize(values: List[float]) -> List[float]:
     return [(v - lo) / (hi - lo) for v in values]
 
 
-def _synthesize_summary(question: str, table: List[Dict[str, Any]]) -> str:
+def _structured_summary(
+    question: str,
+    ranked: List[Dict[str, Any]],
+    search_payload: Dict[str, Any],
+    internal_refs: List[Dict[str, Any]] | None,
+    nvidia_preface: Dict[str, Any] | None,
+) -> str:
+    """Generate a Perplexity-style structured answer with sections, rationale, and citations.
+    Falls back to heuristic if LLM unavailable or errors.
+    """
     api_key = os.getenv("GOOGLE_API_KEY")
+
     def _heuristic() -> str:
-        lines = [
-            "LLM not configured; returning heuristic summary.",
-            "Top candidates by low-competition/high-burden heuristic:",
-        ]
-        for row in table[:3]:
-            lines.append(f"- {row['disease']}: score={row['score']:.2f}")
+        lines = ["## Executive Summary (Heuristic)", f"Question: {question}"]
+        top = ranked[:3]
+        if top:
+            lines.append("\n### Top Candidates")
+            for row in top:
+                lines.append(
+                    f"- {row['disease']} (score={row['score']:.2f}, competitors={row['competitor_count']}, trialsP2={row['phase2_india']}, trialsP3={row['phase3_india']})"
+                )
+        lines.append("\n### Rationale")
+        lines.append(
+            "Score approximates burden (market size) minus competition (competitors + late-stage trials). Higher score => attractive gap."
+        )
+        if internal_refs:
+            lines.append("\n### Internal Notes (Snippets)")
+            for ref in internal_refs[:3]:
+                lines.append(f"- {ref['disease']}: {ref['snippet']}…")
+        lines.append("\n### Next Questions")
+        lines.append("- Validate patient prevalence data magnitude")
+        lines.append("- Examine regulatory timelines for top 2 diseases")
         return "\n".join(lines)
 
     if not api_key:
         return _heuristic()
 
-    # Prefer stable model name; allow override via env
-    model_name = os.getenv("GOOGLE_CHAT_MODEL", "gemini-2.5-pro")
+    # Build contextual CSV and short source list
+    rows_csv = "\n".join(
+        [
+            "disease,score,market_size_usd,competitors,phase2_india,phase3_india,patent_filings_last_5y,key_patents_expiring_in_years,trials_total_india"
+        ]
+        + [
+            f"{r['disease']},{r['score']:.3f},{r.get('market_size_usd',0)},{r.get('competitor_count',0)},{r.get('phase2_india',0)},{r.get('phase3_india',0)},{r.get('patent_filings_last_5y',0)},{r.get('key_patents_expiring_in_years',0)},{r.get('trials_total_india',0)}"
+            for r in ranked
+        ]
+    )
+    web_citations: List[str] = []
+    for r in (search_payload.get("results", []) or [])[:5]:
+        url = r.get("url") or ""
+        title = r.get("title") or ""
+        if url:
+            web_citations.append(f"{title} | {url}")
+    internal_citations = [f"{ref['disease']}: {ref['source']}" for ref in (internal_refs or [])[:5]]
+
+    nvidia_analysis = None
+    if nvidia_preface and isinstance(nvidia_preface, dict):
+        nvidia_analysis = nvidia_preface.get("analysis")
+
+    model_name = os.getenv("GOOGLE_CHAT_MODEL", "gemini-1.5-pro")
     try:
         llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2)
-        # Keep prompt compact
-        csv_rows = "\n".join(
-            [
-                "disease,score,market_size_usd,competitor_count,phase2_india,phase3_india,patent_filings_last_5y,key_patents_expiring_in_years"
-            ]
-            + [
-                f"{r['disease']},{r['score']:.3f},{r.get('market_size_usd',0)},{r.get('competitor_count',0)},{r.get('phase2_india',0)},{r.get('phase3_india',0)},{r.get('patent_filings_last_5y',0)},{r.get('key_patents_expiring_in_years',0)}"
-                for r in table
-            ]
-        )
         prompt = (
-            "You are an analyst. Based on the table, write a concise executive summary "
-            "identifying diseases with low competition but high patient burden in India. "
-            "Explain 2-3 reasons for the top 1-2 picks, referencing competition (competitors, trials) "
-            "and timing (patent expiries). Keep under 140 words.\n\n" + csv_rows
+            "You are an expert pharma strategy analyst. Produce a structured answer in concise markdown.\n"
+            "Sections (use these exact headings):\n"
+            "1. **Executive Summary** (<=120 words)\n"
+            "2. **Ranking Rationale** (bullet points explaining top 2-3)\n"
+            "3. **Key Metrics Table** (compact markdown table)\n"
+            "4. **Signals & Gaps** (competition gaps, trial scarcity, patent timing)\n"
+            "5. **Next Recommended Actions** (3 bullets)\n"
+            "6. **Citations** (list)\n"
+            "\nContext CSV:\n" + rows_csv + "\n"
+            + ("\nNVIDIA Analysis:\n" + nvidia_analysis + "\n" if nvidia_analysis else "")
+            + ("\nWeb Sources:\n" + "\n".join(web_citations) + "\n" if web_citations else "")
+            + ("\nInternal Snippets:\n" + "\n".join(internal_citations) + "\n" if internal_citations else "")
+            + "\nConstraints: Keep total under 500 words. Be precise and non-repetitive."
         )
         resp = llm.invoke(prompt)
         return getattr(resp, "content", str(resp))
     except Exception:
-        # If model name not available (e.g., -latest not found), fall back
         return _heuristic()
 
 
@@ -143,9 +185,7 @@ def run_query(question: str) -> Dict[str, Any]:
         pass
 
     # 5) Synthesis via LLM
-    summary = _synthesize_summary(question, rows_sorted)
-    if nvidia_preface and isinstance(nvidia_preface, dict) and nvidia_preface.get("analysis"):
-        summary = nvidia_preface["analysis"] + "\n\n" + summary
+    summary = _structured_summary(question, rows_sorted, search, internal_refs, nvidia_preface)
 
     # 6) Build tables for PDF
     iqvia_table = [
