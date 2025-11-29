@@ -18,7 +18,7 @@ Endpoints (expected):
 - POST {BASE}/aiq/extract_entities: {"text": str} -> {"entities": [..]}
 - POST {BASE}/aiq/rank_diseases: {"diseases": [str], "country": str} -> {"ranked": [{..}]}
 
-These endpoints are illustrative; adapt to your deployed blueprint.
+.
 """
 
 BASE = os.getenv("NVIDIA_BIOAIQ_URL")

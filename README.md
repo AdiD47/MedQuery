@@ -1,4 +1,4 @@
-# MedQuery – Multi-Agent Med Intelligence (Hackathon Starter)
+# MedQuery – Multi-Agent Med Intelligence 
 
 This project demonstrates a Master Agent orchestrating specialist agents to answer complex pharma strategy questions like:
 

@@ -2,7 +2,7 @@ import os
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 try:
     import fitz  # PyMuPDF
