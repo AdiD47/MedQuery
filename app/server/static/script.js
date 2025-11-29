@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const question = mainSearchInput ? mainSearchInput.value.trim() : '';
         const statusBar = document.getElementById('statusBar');
         const summaryWrap = document.getElementById('summaryWrap');
-        const summaryText = document.getElementById('summaryText');
+        const summaryMd = document.getElementById('summaryMd');
         const rankingWrap = document.getElementById('rankingWrap');
         const rankingTable = document.getElementById('rankingTable');
         const reportLink = document.getElementById('reportLink');
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (rankingWrap) { rankingWrap.hidden = true; }
         if (reportLink) { reportLink.hidden = true; reportLink.innerHTML=''; }
         if (rankingTable) { const tb = rankingTable.querySelector('tbody'); if (tb) tb.innerHTML=''; }
-        if (summaryText) { summaryText.textContent=''; }
+        if (summaryMd) { summaryMd.innerHTML=''; }
 
         if (statusBar) {
             statusBar.hidden = false;
@@ -148,8 +148,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return;
             }
-            // Summary
-            if (summaryText) { summaryText.textContent = data.summary || '(No summary returned)'; }
+            // Summary (markdown-rendered)
+            if (summaryMd) { summaryMd.innerHTML = renderMarkdown(data.summary || '(No summary returned)'); }
             if (summaryWrap) { summaryWrap.hidden = false; }
             // Ranking
             if (Array.isArray(data.ranked) && data.ranked.length) {
@@ -359,3 +359,76 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Lightweight markdown renderer (headings, lists, links, code, tables)
+function renderMarkdown(md){
+    if(!md) return '';
+    // Normalize line endings
+    md = md.replace(/\r\n?/g,'\n');
+    // Escape HTML first
+    const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    // Extract code fences first to avoid interference
+    const fences = [];
+    md = md.replace(/```([\s\S]*?)```/g,(m,code)=>{const id=fences.push(code)-1;return `{{CODE_BLOCK_${id}}}`});
+
+    // Headings
+    md = md.replace(/^###\s+([^\n]+)$/gm,'<h3>$1<\/h3>')
+           .replace(/^##\s+([^\n]+)$/gm,'<h2>$1<\/h2>')
+           .replace(/^#\s+([^\n]+)$/gm,'<h1>$1<\/h1>');
+    // Links, bold, italics
+    md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1<\/a>')
+           .replace(/\*\*([^*]+)\*\*/g,'<strong>$1<\/strong>')
+           .replace(/(^|\s)\*([^*]+)\*(?=\s|[.,!?:;]|$)/g,'$1<em>$2<\/em>');
+
+    // Lists and paragraphs + simple table support
+    const lines = md.split('\n');
+    let html = '', inList=false, inTable=false, tableRows=[];
+    const flushList = ()=>{ if(inList){ html+='</ul>'; inList=false; }};
+    const flushTable = ()=>{
+        if(!inTable) return;
+        if(tableRows.length){
+            const [head, ...rows] = tableRows;
+            html += '<table><thead><tr>' + head.map(h=>`<th>${esc(h.trim())}</th>`).join('') + '</tr></thead><tbody>'+
+                    rows.map(r=>'<tr>'+r.map(c=>`<td>${esc(c.trim())}</td>`).join('')+'</tr>').join('')+
+                    '</tbody></table>';
+        }
+        tableRows = []; inTable=false;
+    };
+    for(let i=0;i<lines.length;i++){
+        const line = lines[i];
+        if(/^\s*\|.+\|\s*$/.test(line)){
+            // Table-like row
+            flushList();
+            inTable = true;
+            const cells = line.trim().slice(1,-1).split('|');
+            // Skip separator rows (---)
+            if(!/^\s*-{3,}\s*$/.test(cells[0])){
+                tableRows.push(cells);
+            }
+            continue;
+        } else if(/^\s*[-*]\s+/.test(line)){
+            flushTable();
+            if(!inList){ html+='<ul>'; inList=true; }
+            html += '<li>'+line.replace(/^\s*[-*]\s+/, '')+'</li>';
+            continue;
+        } else if(line.trim()===''){
+            flushList(); flushTable();
+            html += '';
+            continue;
+        }
+        flushList(); flushTable();
+        if(!/^<h[1-3]>/.test(line)){
+            html += '<p>'+line+'</p>';
+        } else {
+            html += line;
+        }
+    }
+    flushList(); flushTable();
+
+    // Restore fenced code blocks
+    html = html.replace(/\{\{CODE_BLOCK_(\d+)\}\}/g,(m,idx)=>{
+        const code = fences[Number(idx)] || '';
+        return '<pre><code>'+esc(code)+'</code></pre>';
+    });
+    return html;
+}
