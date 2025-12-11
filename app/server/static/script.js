@@ -108,10 +108,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const rankingTable = document.getElementById('rankingTable');
         const reportLink = document.getElementById('reportLink');
 
+        // Validation
         if (!question) {
             if (mainSearchInput) {
                 mainSearchInput.style.animation = 'shake 0.5s';
-                setTimeout(() => { mainSearchInput.style.animation = ''; }, 500);
+                mainSearchInput.placeholder = 'Please enter a research question';
+                setTimeout(() => { 
+                    mainSearchInput.style.animation = ''; 
+                    mainSearchInput.placeholder = 'Ask anything. Type @ for mentions.';
+                }, 500);
+            }
+            return;
+        }
+        
+        if (question.length < 10) {
+            if (statusBar) {
+                statusBar.hidden = false;
+                statusBar.textContent = 'Question must be at least 10 characters';
+                statusBar.style.background = '#ff4444';
+                setTimeout(() => { statusBar.hidden = true; statusBar.style.background = ''; }, 3000);
             }
             return;
         }
@@ -126,10 +141,31 @@ document.addEventListener('DOMContentLoaded', function() {
         if (statusBar) {
             statusBar.hidden = false;
             statusBar.classList.add('loading');
-            statusBar.textContent = 'Running multi-agent analysis…';
+            statusBar.style.background = '';
+            statusBar.textContent = 'Orchestrating agents and gathering intelligence…';
         }
         if (beginBtn) { beginBtn.disabled = true; beginBtn.style.opacity='0.65'; }
         if (mainSearchInput) { mainSearchInput.disabled = true; }
+
+        const startTime = Date.now();
+        let progressInterval = null;
+        
+        // Show progress updates
+        const progressMessages = [
+            'Searching for candidate diseases…',
+            'Gathering market intelligence…',
+            'Analyzing clinical trials…',
+            'Querying internal knowledge base…',
+            'Synthesizing insights…'
+        ];
+        let msgIndex = 0;
+        
+        progressInterval = setInterval(() => {
+            msgIndex = (msgIndex + 1) % progressMessages.length;
+            if (statusBar && !statusBar.hidden) {
+                statusBar.textContent = progressMessages[msgIndex];
+            }
+        }, 3000);
 
         fetch('/api/run_query', {
             method: 'POST',
@@ -137,20 +173,34 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({ question })
         })
         .then(r => {
-            if (!r.ok) throw new Error('Server error ' + r.status);
+            if (!r.ok) {
+                throw new Error(`Server returned ${r.status}: ${r.statusText}`);
+            }
             return r.json();
         })
         .then(data => {
+            clearInterval(progressInterval);
+            
             if (data && data.error){
                 if (statusBar){
                     statusBar.textContent = 'Error: ' + data.error;
                     statusBar.classList.remove('loading');
+                    statusBar.style.background = '#ff4444';
                 }
                 return;
             }
+            
+            // Display processing time
+            const elapsed = data.processing_time_ms || (Date.now() - startTime);
+            
             // Summary (markdown-rendered)
-            if (summaryMd) { summaryMd.innerHTML = renderMarkdown(data.summary || '(No summary returned)'); }
+            if (summaryMd && data.summary) { 
+                summaryMd.innerHTML = renderMarkdown(data.summary); 
+            } else if (summaryMd) {
+                summaryMd.innerHTML = '<p><em>No summary available</em></p>';
+            }
             if (summaryWrap) { summaryWrap.hidden = false; }
+            
             // Ranking
             if (Array.isArray(data.ranked) && data.ranked.length) {
                 const tb = rankingTable.querySelector('tbody');
@@ -159,43 +209,57 @@ document.addEventListener('DOMContentLoaded', function() {
                     const cells = [
                         r.disease,
                         (r.score ?? 0).toFixed(3),
-                        r.market_size_usd ?? 0,
+                        (r.market_size_usd ?? 0).toLocaleString(),
                         r.competitor_count ?? 0,
                         r.phase2_india ?? 0,
                         r.phase3_india ?? 0,
                         r.trials_total_india ?? 0,
                     ];
-                    cells.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+                    cells.forEach(c => { 
+                        const td = document.createElement('td'); 
+                        td.textContent = c; 
+                        tr.appendChild(td); 
+                    });
                     tb.appendChild(tr);
                 });
                 rankingWrap.hidden = false;
+            } else {
+                console.warn('No ranking data received');
             }
+            
             // Report link
             if (data.report_url && reportLink) {
                 const a = document.createElement('a');
                 a.href = data.report_url;
-                a.textContent = 'Download PDF Report';
+                a.textContent = '📄 Download PDF Report';
                 a.download = 'medquery-report.pdf';
                 reportLink.appendChild(a);
                 reportLink.hidden = false;
             }
+            
             if (statusBar) {
-                statusBar.textContent = 'Analysis complete ✓';
+                statusBar.textContent = `Analysis complete ✓ (${(elapsed / 1000).toFixed(1)}s)`;
                 statusBar.classList.remove('loading');
-                setTimeout(()=>{ statusBar.hidden = true; }, 2500);
+                statusBar.style.background = '#00BCD4';
+                setTimeout(()=>{ statusBar.hidden = true; }, 3000);
             }
         })
         .catch(err => {
-            console.error(err);
+            clearInterval(progressInterval);
+            console.error('Analysis failed:', err);
             if (statusBar) {
                 statusBar.hidden = false;
                 statusBar.classList.remove('loading');
-                statusBar.textContent = 'Error: ' + (err.message || err);
+                statusBar.style.background = '#ff4444';
+                const errorMsg = err.message || 'Unknown error occurred';
+                statusBar.textContent = `Error: ${errorMsg}. Please try again.`;
+                setTimeout(() => { statusBar.hidden = true; statusBar.style.background = ''; }, 5000);
             }
         })
         .finally(()=>{
+            clearInterval(progressInterval);
             if (beginBtn) { beginBtn.disabled = false; beginBtn.style.opacity='1'; }
-            if (mainSearchInput) { mainSearchInput.disabled = false; }
+            if (mainSearchInput) { mainSearchInput.disabled = false; mainSearchInput.focus(); }
         });
     }
     
