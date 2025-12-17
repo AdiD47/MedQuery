@@ -1,4 +1,9 @@
 import os
+import sys
+
+# Add the project root to Python path so 'app' module can be found
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import json
 from typing import List, Dict, Any
 from dotenv import load_dotenv
