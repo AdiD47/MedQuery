@@ -1,6 +1,7 @@
 import os
 from glob import glob
-from app.tools.rag import ingest
+# from app.tools.rag 
+import ingest
 from dotenv import load_dotenv
 
 if __name__ == "__main__":

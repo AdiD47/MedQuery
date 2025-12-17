@@ -121,6 +121,7 @@ start http://127.0.0.1:8000/
 streamlit run app/ui/ui_app.py
 ```
 
+<<<<<<< HEAD
 ### 4. Ingest Internal Knowledge (Optional)
 
 Add your PDFs or text files to `data/internal/`, then:
@@ -272,4 +273,23 @@ ls ./chroma_db
 - **Tavily**: Optional; falls back to generic search without key
 - **Mock APIs**: IQVIA, EXIM, USPTO return deterministic data for demonstration
 - **NVIDIA BioAI-Q**: Optional integration for enhanced biomedical analysis
+=======
+## Single-command launch
+Alternatively, run everything (mock server + optional ingest + UI) with:
+```powershell
+python scripts/run_medquery.py
+```
+Flags:
+- Skip ingest: `python scripts/run_medquery.py --no-ingest`
+- Custom port: `python scripts/run_medquery.py --port 8100`
+
+The script exits with Ctrl+C.
+Open the link shown in terminal. Enter a question (e.g., the respiratory example) and click Run.
+
+## Notes
+- ClinicalTrials.gov API is real and requires no key.
+- Tavily is optional; without a key, the app falls back to a minimal generic search summary.
+- The mock server returns deterministic data.
+ - NVIDIA Biomedical AI-Q integration is optional; if configured, its analysis is prepended to the summary and candidate ordering can be influenced.
+>>>>>>> 2de521e (Nidia integration)
 
