@@ -42,15 +42,45 @@ else:
         max_completion_tokens=8192,
     )
 
-tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+# Lazy initialization of Tavily client to avoid connection errors at import time
+tavily = None
+def get_tavily_client():
+    global tavily
+    if tavily is None:
+        api_key = os.getenv("TAVILY_API_KEY")
+        if api_key:
+            tavily = TavilyClient(api_key=api_key)
+    return tavily
 
 def search_and_extract_candidates(question: str) -> List[str]:
     search_query = f"{question} India 2025 high burden low competition biosimilar patent cliff orphan rare"
-    results = tavily.search(query=search_query, max_results=15, include_raw_content=True)
+    
+    # Get Tavily client (may be None if not configured)
+    client = get_tavily_client()
+    
+    # Fallback candidates if Tavily is not available or fails
+    fallback_candidates = [
+        "Idiopathic Pulmonary Fibrosis",
+        "Chronic Obstructive Pulmonary Disease", 
+        "Tuberculosis",
+        "Non-Small Cell Lung Cancer",
+        "Multiple Myeloma",
+        "Asthma"
+    ]
+    
+    if client is None:
+        print("No Tavily API key configured — using fallback candidates")
+        return fallback_candidates
+    
+    try:
+        results = client.search(query=search_query, max_results=15, include_raw_content=True)
+    except Exception as e:
+        print(f"Tavily search failed ({e}) — using fallback candidates")
+        return fallback_candidates
 
     if llm is None:
         print("No LLM available — using fallback candidates")
-        return ["Idiopathic Pulmonary Fibrosis", "Chronic Obstructive Pulmonary Disease", "Tuberculosis", "Non-Small Cell Lung Cancer", "Multiple Myeloma", "Asthma"]
+        return fallback_candidates
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a pharma strategy analyst in emerging markets."),
@@ -72,14 +102,7 @@ Return ONLY a JSON list of 6–10 full disease names with high opportunity in In
             raise ValueError
     except Exception as e:
         print(f"Candidate extraction failed ({e}) → using fallback")
-        candidates = [
-            "Idiopathic Pulmonary Fibrosis",
-            "Chronic Obstructive Pulmonary Disease",
-            "Tuberculosis",
-            "Non-Small Cell Lung Cancer",
-            "Multiple Myeloma",
-            "Asthma"
-        ]
+        candidates = fallback_candidates
     return candidates
 
 def fetch_structured_data(candidates: List[str]) -> List[Dict[str, Any]]:
@@ -229,14 +252,38 @@ Generate a concise executive report in markdown.
 """)
     ])
 
-    chain = final_prompt | llm
-    summary = chain.invoke({
-        "question": question,
-        "bioaiq": bioaiq_insight or "Not available",
-        "structure": structural_insight,
-        "ranked": json.dumps(ranked[:6], indent=2),
-        "internal": json.dumps(internal_refs, indent=2),
-    }).content
+    # Generate summary using LLM or fallback to a simple template
+    if llm is not None:
+        chain = final_prompt | llm
+        summary = chain.invoke({
+            "question": question,
+            "bioaiq": bioaiq_insight or "Not available",
+            "structure": structural_insight,
+            "ranked": json.dumps(ranked[:6], indent=2),
+            "internal": json.dumps(internal_refs, indent=2),
+        }).content
+    else:
+        # Fallback summary when LLM is not available
+        print("No LLM available — generating basic summary")
+        summary = f"""# MedQuery Analysis Report
+
+## Query
+{question}
+
+## Top Ranked Opportunities
+{json.dumps(ranked[:6], indent=2)}
+
+## BioAIQ Insights
+{bioaiq_insight or "Not available"}
+
+## Structural Analysis
+{structural_insight}
+
+## Internal References
+{json.dumps(internal_refs, indent=2) if internal_refs else "None available"}
+
+*Note: This is a basic report generated without LLM summarization. Configure NVIDIA_API_KEY for enhanced analysis.*
+"""
 
     pdf_path = generate_report(
         title="MedQuery — India Therapeutic Opportunity Report (2025)",
